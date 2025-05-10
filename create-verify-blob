@@ -3,17 +3,35 @@ set -euo pipefail
 
 TPM_ROOT="${HOME}/.tpm"
 
-FORCE="${FORCE:-false}";
+FORCE="${FORCE:-false}"
 
-BLOB_NAME="sealed"
+BLOB_NAME="${BLOB_NAME:-}"
 # Allow overriding INPUT; default to "-" (read from stdin)
 INPUT="${INPUT:--}"
 SHOW_RECOVERED="${SHOW_RECOVERED:-false}"
 
-PRIMARY_CTX="${PRIMARY_CTX:-${TPM_ROOT}/prim-p384.ctx}"
-PCR_POLICY="${PCR_POLICY:-${TPM_ROOT}/${BLOB_NAME}-p384.policy}"
-SEALED_PUB="${SEALED_PUB:-${TPM_ROOT}/${BLOB_NAME}-p384.pub}"
-SEALED_PRIV="${SEALED_PRIV:-${TPM_ROOT}/${BLOB_NAME}-p384.priv}"
+# extension signaling which primary key is associated with a given secret.
+PRIM_EXTENSION="${PRIM_EXTENSION:-_p384}"
+
+PRIMARY_CTX="${PRIMARY_CTX:-${TPM_ROOT}/prim${PRIM_EXTENSION}.ctx}"
+PCR_POLICY="${PCR_POLICY:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION.policy}"
+SEALED_PUB="${SEALED_PUB:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.pub}"
+SEALED_PRIV="${SEALED_PRIV:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.priv}"
+
+# temporary dirs
+TEMPDIR="$(mktemp -d /tmp/tpm.XXXXXXXXX)"
+SESSION_CTX="${SESSION_CTX:-${TEMPDIR}/session-p384.ctx}"
+SEALED_CTX="${SEALED_CTX:-${TEMPDIR}/${BLOB_NAME}-p384.ctx}"
+
+# Filename for writing secret. Set to `-` for stdout, or a filename to save
+# secret.
+RECOVERED="${RECOVERED:-/dev/null}"
+
+# PCRs and hash must match your primary
+PCRS=0,6,7
+HASH=sha384
+PCR_LIST="${HASH}:${PCRS}"
+AUTH_STRING="session:${SESSION_CTX}"
 
 message() {
     for arg in "${@}"; do
@@ -39,21 +57,6 @@ fail_exists() {
 fail_exists "${PCR_POLICY}"
 fail_exists "${SEALED_PUB}"
 fail_exists "${SEALED_PRIV}"
-
-# temporary dirs
-TEMPDIR="$(mktemp -d /tmp/tpm.XXXXXXXXX)"
-SESSION_CTX="${SESSION_CTX:-${TEMPDIR}/session-p384.ctx}"
-SEALED_CTX="${SEALED_CTX:-${TEMPDIR}/${BLOB_NAME}-p384.ctx}"
-
-# Filename for writing secret. Set to `-` for stdout, or a filename to save
-# secret.
-RECOVERED="${RECOVERED:-/dev/null}"
-
-# PCRs and hash must match your primary
-PCRS=0,6,7
-HASH=sha384
-PCR_LIST="${HASH}:${PCRS}"
-AUTH_STRING="session:${SESSION_CTX}"
 
 if [[ "${RECOVERED}" = '-' ]]; then
     message 'WARNING: this will display secrets' \
@@ -152,7 +155,14 @@ tpm2_policypcr --session="${SESSION_CTX}" --pcr-list="${PCR_LIST}"
 # AUTH_STRING="session:${SESSION_CTX}+password:${SEALED_OBJECT_AUTH}"
 # If no separate sealed object auth (relying only on PCR policy):
 
-tpm2_unseal -c "${SEALED_CTX}" -p "${AUTH_STRING}" -o "${RECOVERED}"
+if [[ "${RECOVERED}" = '-' ]]; then
+    # Sadly `-o` doesn't respect `-` here. We have to condition it in this
+    # script.
+    message "writing to stdout"
+    tpm2_unseal -c "${SEALED_CTX}" -p "${AUTH_STRING}"
+else
+    tpm2_unseal -c "${SEALED_CTX}" -p "${AUTH_STRING}" -o "${RECOVERED}"
+fi
 
 # don't print this message if we didn't actually write somewhere
 [[ "${RECOVERED}" != /dev/null && \
