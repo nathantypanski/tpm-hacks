@@ -6,15 +6,17 @@ TPM_ROOT="${HOME}/.tpm"
 BLOB_NAME="sealed"
 # Allow overriding INPUT; default to "-" (read from stdin)
 INPUT="${INPUT:--}"
+SHOW_RECOVERED="${SHOW_RECOVERED:-false}"
 
-# ── Configuration ────────────────────────────────────────────────────────────
+
 PRIMARY_CTX="${PRIMARY_CTX:-${TPM_ROOT}/prim-p384.ctx}"
 PCR_POLICY="${PCR_POLICY:-${TPM_ROOT}/pcr-p384.policy}"
 SEALED_PUB="${SEALED_PUB:-${TPM_ROOT}/${BLOB_NAME}-p384.pub}"
 SEALED_PRIV="${SEALED_PRIV:-${TPM_ROOT}/${BLOB_NAME}-p384.priv}"
 RECOVERED="${RECOVERED:-${TPM_ROOT}/recovered.txt}"
 
-TEMPDIR="$(mktemp -d)"
+# temporary dirs
+TEMPDIR="$(mktemp -d /tmp/tpm.XXXXXXXXX)"
 SESSION_CTX="${SESSION_CTX:-${TEMPDIR}/session-p384.ctx}"
 SEALED_CTX="${SEALED_CTX:-${TEMPDIR}/${BLOB_NAME}-p384.ctx}"
 
@@ -23,25 +25,31 @@ PCRS=0,6,7
 HASH=sha384
 PCR_LIST="${HASH}:${PCRS}"
 
-# ── Cleanup trap ─────────────────────────────────────────────────────────────
+# cleanup trap
 trap '
- for f in "${SESSION_CTX}" "${SEALED_CTX}"; do
-   [[ -f "$f" ]] && tpm2_flushcontext "$f" >/dev/null 2>&1 || true
- done
+   for f in "${SESSION_CTX}" "${SEALED_CTX}"; do
+       [[ -f "$f" ]] && tpm2_flushcontext "$f" >/dev/null 2>&1 || true
+   done
+   if [[ -n "${TEMPDIR:-}" && "$TEMPDIR" == /tmp/* ]]; then
+       echo >&2 rm -rf -- "${TEMPDIR}"
+   else
+       echo >&2 "WARNING: Skipping tempdir cleanup: suspicious path '${TEMPDIR}'"
+   fi
 ' EXIT
 
-# ── 1) Ensure primary exists ─────────────────────────────────────────────────
-if [[ ! -f $PRIMARY_CTX ]]; then
+# Ensure primary key
+if [[ ! -f "${PRIMARY_CTX}" ]]; then
     echo "Generating primary key (ECC P‑384 + AES‑256‑CTR)…"
     tpm2_createprimary \
         --hierarchy 'o' \
         --hash-algorithm='sha384' \
         --key-algorithm='ecc384:aes256ctr' \
-        --key-context="$PRIMARY_CTX"
+        --key-context="${PRIMARY_CTX}"
 fi
 
-# ── 2) Build PCR policy ───────────────────────────────────────────────────────
+# build PCR policy
 echo "Building PCR policy (PCRs $PCR_LIST, $HASH)…"
+
 tpm2_startauthsession --policy-session -S "${SESSION_CTX}"
 tpm2_policypcr \
     --session="${SESSION_CTX}" \
@@ -51,7 +59,7 @@ tpm2_policypcr \
 tpm2_flushcontext "${SESSION_CTX}"
 
 # Seal via either stdin or a file
-if [[ "$INPUT" == "-" ]]; then
+if [[ "${INPUT}" == "-" ]]; then
   # Interactive mode: prompt for passphrase
   printf 'Enter SSH passphrase: ' > /dev/tty
   read -r -s SECRET < /dev/tty
@@ -60,20 +68,20 @@ if [[ "$INPUT" == "-" ]]; then
 # pass SECRET via here-string into stdin
 # avoids many security pitfalls of env vars / arguments
 tpm2_create \
-    --parent-context="$PRIMARY_CTX" \
+    --parent-context="${PRIMARY_CTX}" \
     --sealing-input=- \
-    --policy="$PCR_POLICY" \
-    --public="$SEALED_PUB" \
-    --private="$SEALED_PRIV" \
-    <<<"$SECRET"
+    --policy="${PCR_POLICY}" \
+    --public="${SEALED_PUB}" \
+    --private="${SEALED_PRIV}" \
+    <<<"${SECRET}"
 else
   # read from the file pointed to by INPUT
   tpm2_create \
-    --parent-context="$PRIMARY_CTX" \
-    --sealing-input="$INPUT" \
-    --policy="$PCR_POLICY" \
-    --public="$SEALED_PUB" \
-    --private="$SEALED_PRIV"
+    --parent-context="${PRIMARY_CTX}" \
+    --sealing-input="${INPUT}" \
+    --policy="${PCR_POLICY}" \
+    --public="${SEALED_PUB}" \
+    --private="${SEALED_PRIV}"
 fi
 
 # Clear the secret from the environment
@@ -81,22 +89,22 @@ unset SECRET
 
 echo "Sealed blob written to $SEALED_PRIV and $SEALED_PUB"
 
-# ── 4) Verify by loading & unsealing ─────────────────────────────────────────
+# verify: load & unseal
 echo "Verifying sealed blob…"
 tpm2_load -C "${PRIMARY_CTX}" \
           -u "${SEALED_PUB}" \
           -r "${SEALED_PRIV}" \
           -c "${SEALED_CTX}"
 
-tpm2_startauthsession --policy-session --session="$SESSION_CTX"
-tpm2_policypcr --session="$SESSION_CTX" --policy="$PCR_POLICY" --pcr-list="${PCR_LIST}"
+tpm2_startauthsession --policy-session --session="${SESSION_CTX}"
+tpm2_policypcr --session="${SESSION_CTX}" --policy="${PCR_POLICY}" --pcr-list="${PCR_LIST}"
 
 if [[ "${RECOVERED}" = "-" ]]; then
-    tpm2_unseal -c "$SEALED_CTX" -p "session:${SESSION_CTX}+pcr:${PCR_LIST}"
+    tpm2_unseal -c "${SEALED_CTX}" -p "session:${SESSION_CTX}+pcr:${PCR_LIST}"
 else
-    tpm2_unseal -c "$SEALED_CTX" -p "session:${SESSION_CTX}+pcr:${PCR_LIST}" \
+    tpm2_unseal -c "${SEALED_CTX}" -p "session:${SESSION_CTX}+pcr:${PCR_LIST}" \
                 -o "${RECOVERED}"
 fi
 
-echo "Recovered secret: $(<"$RECOVERED")"
+echo "Recovered secret: $(<"${RECOVERED}")"
 
