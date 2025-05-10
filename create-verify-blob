@@ -19,9 +19,9 @@ SESSION_CTX="${SESSION_CTX:-${TEMPDIR}/session-p384.ctx}"
 SEALED_CTX="${SEALED_CTX:-${TEMPDIR}/${BLOB_NAME}-p384.ctx}"
 
 # PCRs and hash must match your primary
-PCR_LIST=0,6,7
+PCRS=0,6,7
 HASH=sha384
-POLICY="${HASH}:${PCR_LIST}"
+PCR_LIST="${HASH}:${PCRS}"
 
 # ── Cleanup trap ─────────────────────────────────────────────────────────────
 trap '
@@ -46,7 +46,7 @@ tpm2_startauthsession --policy-session -S "${SESSION_CTX}"
 tpm2_policypcr \
     --session="${SESSION_CTX}" \
     --policy="${PCR_POLICY}" \
-    --pcr-list="${POLICY}"
+    --pcr-list="${PCR_LIST}"
 
 tpm2_flushcontext "${SESSION_CTX}"
 
@@ -88,14 +88,14 @@ tpm2_load -C "${PRIMARY_CTX}" \
           -r "${SEALED_PRIV}" \
           -c "${SEALED_CTX}"
 
-tpm2_startauthsession --policy-session -S "$SESSION_CTX"
-tpm2_policypcr -S "$SESSION_CTX" -L "$PCR_POLICY" -l $HASH:$PCR_LIST
+tpm2_startauthsession --policy-session --session="$SESSION_CTX"
+tpm2_policypcr --session="$SESSION_CTX" --policy="$PCR_POLICY" --pcr-list="${PCR_LIST}"
 
 if [[ "${RECOVERED}" = "-" ]]; then
-    tpm2_unseal -c "$SEALED_CTX" -p session:"$SESSION_CTX"+pcr:$HASH:$PCR_LIST
+    tpm2_unseal -c "$SEALED_CTX" -p "session:${SESSION_CTX}+pcr:${PCR_LIST}"
 else
-    tpm2_unseal -c "$SEALED_CTX" -p session:"$SESSION_CTX"+pcr:$HASH:$PCR_LIST \
-                -o "$RECOVERED"
+    tpm2_unseal -c "$SEALED_CTX" -p "session:${SESSION_CTX}+pcr:${PCR_LIST}" \
+                -o "${RECOVERED}"
 fi
 
 echo "Recovered secret: $(<"$RECOVERED")"
