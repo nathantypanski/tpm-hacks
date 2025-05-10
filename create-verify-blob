@@ -4,6 +4,7 @@ set -euo pipefail
 TPM_ROOT="${HOME}/.tpm"
 
 BLOB_NAME="sealed"
+# Allow overriding INPUT; default to "-" (read from stdin)
 INPUT="${INPUT:--}"
 
 # ── Configuration ────────────────────────────────────────────────────────────
@@ -24,7 +25,7 @@ POLICY="${HASH}:${PCR_LIST}"
 
 # ── Cleanup trap ─────────────────────────────────────────────────────────────
 trap '
- for f in "$SESSION_CTX" "$SEALED_CTX"; do
+ for f in "${SESSION_CTX}" "${SEALED_CTX}"; do
    [[ -f "$f" ]] && tpm2_flushcontext "$f" >/dev/null 2>&1 || true
  done
 ' EXIT
@@ -46,21 +47,38 @@ tpm2_policypcr \
     --session="${SESSION_CTX}" \
     --policy="${PCR_POLICY}" \
     --pcr-list="${POLICY}"
-tpm2_flushcontext "$SESSION_CTX"
 
-# ── 3) Seal your secret ──────────────────────────────────────────────────────
+tpm2_flushcontext "${SESSION_CTX}"
 
-# Prompt directly on the controlling terminal (tty is more secure)
-read -rsp "Enter SSH passphrase: " SECRET </dev/tty
-echo
-echo -n "${SECRET}" | \
-    tpm2_create \
-        --parent-context="$PRIMARY_CTX" \
-        --sealing-input="${INPUT}" \
-        --policy="$PCR_POLICY" \
-        --public="$SEALED_PUB" \
-        --private="$SEALED_PRIV"
+# Seal via either stdin or a file
+if [[ "$INPUT" == "-" ]]; then
+  # Interactive mode: prompt for passphrase
+  printf 'Enter SSH passphrase: ' > /dev/tty
+  read -r -s SECRET < /dev/tty
+  printf '\n' > /dev/tty
+
+# pass SECRET via here-string into stdin
+# avoids many security pitfalls of env vars / arguments
+tpm2_create \
+    --parent-context="$PRIMARY_CTX" \
+    --sealing-input=- \
+    --policy="$PCR_POLICY" \
+    --public="$SEALED_PUB" \
+    --private="$SEALED_PRIV" \
+    <<<"$SECRET"
+else
+  # read from the file pointed to by INPUT
+  tpm2_create \
+    --parent-context="$PRIMARY_CTX" \
+    --sealing-input="$INPUT" \
+    --policy="$PCR_POLICY" \
+    --public="$SEALED_PUB" \
+    --private="$SEALED_PRIV"
+fi
+
+# Clear the secret from the environment
 unset SECRET
+
 echo "Sealed blob written to $SEALED_PRIV and $SEALED_PUB"
 
 # ── 4) Verify by loading & unsealing ─────────────────────────────────────────
