@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TPM_ROOT="${HOME}/.tpm"
+
+BLOB_NAME="sealed"
+
+# ── Configuration ────────────────────────────────────────────────────────────
+PRIMARY_CTX="${PRIMARY_CTX:-${TPM_ROOT}/prim-p384.ctx}"
+PCR_POLICY="${PCR_POLICY:-${TPM_ROOT}/pcr-p384.policy}"
+SEALED_PUB="${SEALED_PUB:-${TPM_ROOT}/${BLOB_NAME}-p384.pub}"
+SEALED_PRIV="${SEALED_PRIV:-${TPM_ROOT}/${BLOB_NAME}-p384.priv}"
+SEALED_CTX="${SEALED_CTX:-${TPM_ROOT}/${BLOB_NAME}-p384.ctx}"
+SESSION_CTX="${SESSION_CTX:-${TPM_ROOT}/session-p384.ctx}"
+RECOVERED="${RECOVERED:-${TPM_ROOT}/recovered.txt}"
+
+# PCRs and hash must match your primary
+PCR_LIST=0,6,7
+HASH=sha384
+POLICY="${HASH}:${PCR_LIST}"
+
+# ── Cleanup trap ─────────────────────────────────────────────────────────────
+trap '
+ for f in "$SESSION_CTX" "$SEALED_CTX"; do
+   [[ -f $f ]] && tpm2_flushcontext "$f" >/dev/null 2>&1 || true
+ done
+' EXIT
+
+# ── 1) Ensure primary exists ─────────────────────────────────────────────────
+if [[ ! -f $PRIMARY_CTX ]]; then
+  echo "Generating primary key (ECC P‑384 + AES‑256‑CTR)…"
+  tpm2_createprimary \
+    -C o \
+    -g sha384 \
+    -G ecc384:aes256ctr \
+    -c "$PRIMARY_CTX"
+fi
+
+# ── 2) Build PCR policy ───────────────────────────────────────────────────────
+echo "Building PCR policy (PCRs $PCR_LIST, $HASH)…"
+tpm2_startauthsession --policy-session -S "${SESSION_CTX}"
+tpm2_policypcr \
+    --session "${SESSION_CTX}" \
+    --policy "${PCR_POLICY}" \
+    --pcr-list "${POLICY}" 
+tpm2_flushcontext "$SESSION_CTX"
+
+# ── 3) Seal your secret ──────────────────────────────────────────────────────
+echo -n "Enter SSH passphrase: " >&2
+read -s SECRET
+echo
+echo -n "$SECRET" | \
+  tpm2_create \
+    -C "$PRIMARY_CTX" \
+    -i - \
+    -L "$PCR_POLICY" \
+    -u "$SEALED_PUB" \
+    -r "$SEALED_PRIV"
+echo "Sealed blob written to $SEALED_PRIV and $SEALED_PUB"
+
+# ── 4) Verify by loading & unsealing ─────────────────────────────────────────
+echo "Verifying sealed blob…"
+tpm2_load -C "${PRIMARY_CTX}" \
+          -u "${SEALED_PUB}" \
+          -r "${SEALED_PRIV}" \
+          -c "${SEALED_CTX}"
+
+tpm2_startauthsession --policy-session -S "$SESSION_CTX"
+tpm2_policypcr -S "$SESSION_CTX" -L "$PCR_POLICY" -l $HASH:$PCR_LIST
+
+if [[ "${RECOVERED}" = "-" ]]; then
+    tpm2_unseal -c "$SEALED_CTX" -p session:"$SESSION_CTX"+pcr:$HASH:$PCR_LIST
+else
+    tpm2_unseal -c "$SEALED_CTX" -p session:"$SESSION_CTX"+pcr:$HASH:$PCR_LIST \
+                -o "$RECOVERED"
+fi
+
+echo "Recovered secret: $(<"$RECOVERED")"
+
