@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TPM_ROOT="${HOME}/.tpm"
+BLOB_NAME_TO_UNSEAL="${1:-ssh-passphrase}"
+OUTPUT_TARGET="${2:--}"
+
+PRIMARY_CTX="${PRIMARY_CTX:-${TPM_ROOT}/prim384.ctx}"
+# PRIMARY_AUTH="" # Set this if your primary key itself has a password
+
+SEALED_OBJ_PUB="${SEALED_OBJ_PUB:-${TPM_ROOT}/${BLOB_NAME_TO_UNSEAL}_p384.pub}"
+SEALED_OBJ_PRIV="${SEALED_OBJ_PRIV:-${TPM_ROOT}/${BLOB_NAME_TO_UNSEAL}_p384.priv}"
+
+PCRS_TO_USE="0,6,7"
+PCR_HASH_ALG="sha384"
+PCR_LIST_FOR_UNSEAL="${PCR_HASH_ALG}:${PCRS_TO_USE}"
+
+TEMPDIR="$(mktemp -d /tmp/tpm-unseal-script.XXXXXXXXX)"
+SESSION_CTX="${TEMPDIR}/unseal_policy_session.ctx"
+LOADED_SEALED_OBJ_CTX="${TEMPDIR}/unseal_loaded_sealed_obj.ctx"
+
+cleanup() {
+    for f_ctx in "${SESSION_CTX}" "${LOADED_SEALED_OBJ_CTX}"; do
+        if [[ -f "${f_ctx}" ]]; then
+            tpm2_flushcontext "${f_ctx}" >/dev/null 2>&1 || true
+        fi
+    done
+    if [[ -n "${TEMPDIR:-}" && "$TEMPDIR" == /tmp/* ]]; then
+        rm -rf -- "${TEMPDIR}"
+    fi
+}
+trap cleanup EXIT HUP INT TERM
+
+message() {
+    echo ">>> $*" >&2
+}
+
+err_exit() {
+    message $@
+    exit 1
+}
+
+# sanity checks
+[[ -f "${PRIMARY_CTX}" ]] \
+    || err_exit "ERROR: Primary key context '${PRIMARY_CTX}' not found."
+[[ -f "${SEALED_OBJ_PUB}" ]] \
+    || err_exit "ERROR: Sealed object public part '${SEALED_OBJ_PUB}' not found."
+[[ -f "${SEALED_OBJ_PRIV}" ]] \
+    || err_exit "ERROR: Sealed object private part '${SEALED_OBJ_PRIV}' not found."
+
+message "Loading sealed object '${BLOB_NAME_TO_UNSEAL}'..."
+
+# add -P "${PRIMARY_AUTH}" if your primary key itself has a password
+if ! tpm2_load \
+    --parent-context "${PRIMARY_CTX}" \
+    --public "${SEALED_OBJ_PUB}" \
+    --private "${SEALED_OBJ_PRIV}" \
+    --key-context "${LOADED_SEALED_OBJ_CTX}" >/dev/null; then # Direct command, stdout silenced
+    message "ERROR: Failed to load the sealed object into the TPM."
+    exit 2
+fi
+message "Sealed object loaded successfully. Context: ${LOADED_SEALED_OBJ_CTX}"
+
+message "Starting policy session for PCR authorization..."
+if ! tpm2_startauthsession \
+         --policy-session \
+         --session="${SESSION_CTX}" >/dev/null; then
+    message "ERROR: Failed to start policy session."
+    exit 3
+fi
+
+message "Asserting current PCR state (${PCR_LIST_FOR_UNSEAL}) into policy session..."
+if ! tpm2_policypcr --session="${SESSION_CTX}" \
+                    --pcr-list="${PCR_LIST_FOR_UNSEAL}" >/dev/null; then
+    message "ERROR: Failed to assert PCRs into policy session. PCRs might have changed, or specified PCRs/bank are incorrect."
+    exit 4
+fi
+message "PCR policy asserted into session."
+
+# Time to unseal!
+AUTH_STRING="session:${SESSION_CTX}"
+message "Attempting to unseal object using policy session..."
+
+UNSEAL_SUCCESS=false
+if [[ "${OUTPUT_TARGET}" == "-" ]]; then
+    if tpm2_unseal --object-context "${LOADED_SEALED_OBJ_CTX}" --auth "${AUTH_STRING}" --verbose; then
+        UNSEAL_SUCCESS=true
+    fi
+else
+    # Unseal to a specified file
+    if tpm2_unseal --object-context "${LOADED_SEALED_OBJ_CTX}" --auth "${AUTH_STRING}" --verbose -o "${OUTPUT_TARGET}"; then # Direct command
+        UNSEAL_SUCCESS=true
+    fi
+fi
+
+if ! ${UNSEAL_SUCCESS}; then
+    message "ERROR: Failed to unseal the object."
+    message "This could be due to:"
+    message "  - Current PCR values not matching the policy the object was sealed with (most likely)."
+    message "  - Incorrect primary key or sealed object files."
+    message "  - Other TPM access issues."
+    exit 5
+fi
+
+if [[ "${OUTPUT_TARGET}" == "-" ]]; then
+    message "Secret unsealed successfully (output was directed to STDOUT)."
+else
+    message "Secret unsealed successfully to: ${OUTPUT_TARGET}"
+fi
+
+exit 0
