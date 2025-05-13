@@ -3,12 +3,17 @@
 # part of tpm-blobstore
 
 TPM_ROOT="${TPM_ROOT:-${HOME}/.tpm/tpm-blobstore}"
+STORE="${TPM_ROOT}/blobs"
+
 SCRIPT_TEMPDIR="$(mktemp -d /tmp/tpm.XXXXXXXXX)"
 
 # extension signaling which primary key is associated with a given secret.
 PRIM_EXTENSION="${PRIM_EXTENSION:-_p384}"
-
 PRIMARY_CTX="${PRIMARY_CTX:-${TPM_ROOT}/prim${PRIM_EXTENSION}.ctx}"
+
+PCRS_TO_USE="${PCRS:-0,6,7}"
+PCR_HASH_ALG="${PCR_HASH_ALG:-sha384}"
+PCR_LIST="${PCR_HASH_ALG}:${PCRS_TO_USE}"
 
 message() {
     for arg in "${@}"; do
@@ -30,10 +35,12 @@ ensure_dir() {
 }
 
 fail_exists() {
+    local path="${1}"
+    local name="${2}"
     if [[ "${FORCE}" = "true" || ${FORCE} = '1' ]]; then
         return
     elif [[ -f "${1}" ]]; then
-        message "output filename already exists:" \
+        message "output filename for ${2} already exists:" \
                 "    '${1}'" \
                 "exiting. Set FORCE to override."
         exit 201
@@ -41,3 +48,4 @@ fail_exists() {
 }
 
 ensure_dir "${TPM_ROOT}"
+ensure_dir "${STORE}"

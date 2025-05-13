@@ -1,17 +1,28 @@
 #!/usr/bin/env bash
+#
+# create-verify-blob
+#
+# part of tpm-blobstore
+
 set -euo pipefail
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 LIB_DIR="${SCRIPT_DIR}/lib"
+
 . "${LIB_DIR}/common.sh"
 
 FORCE="${FORCE:-false}"
 SHOW_RECOVERED="${SHOW_RECOVERED:-false}"
 RECOVERED="${RECOVERED:-/dev/null}"
 
-BLOB_NAME="${BLOB_NAME:-}"
+if [[ $# -ne 1 ]]; then
+    message "usage: create-verify-blob BLOB_NAME"
+    exit 1
+fi
+
+BLOB_NAME="${1}"
 if [[ -z "${BLOB_NAME}" ]]; then
-    message "You must set BLOB_NAME to run"
+    message "You must pass BLOB_NAME to run"
     exit 1
 fi
 # Allow overriding INPUT; default to "-" (read from stdin)
@@ -25,19 +36,13 @@ SEALED_PRIV="${SEALED_PRIV:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.priv}"
 # temporary dirs
 SESSION_CTX="${SESSION_CTX:-${SCRIPT_TEMPDIR}/session-p384.ctx}"
 SEALED_CTX="${SEALED_CTX:-${SCRIPT_TEMPDIR}/${BLOB_NAME}-p384.ctx}"
-echo >&2 "SESSION_CTX: '$SESSION_CTX'"
-echo >&2 "SEALED_CTX: '$SEALED_CTX'"
-
 
 # PCRs and hash must match your primary
-PCRS=0,6,7
-HASH=sha384
-PCR_LIST="${HASH}:${PCRS}"
 AUTH_STRING="session:${SESSION_CTX}"
 
-fail_exists "${PCR_POLICY}"
-fail_exists "${SEALED_PUB}"
-fail_exists "${SEALED_PRIV}"
+fail_exists "${PCR_POLICY}" 'pcr policy'
+fail_exists "${SEALED_PUB}" 'sealed blob pubkey'
+fail_exists "${SEALED_PRIV}" 'selaed blob'
 
 if [[ "${RECOVERED}" = '-' ]]; then
     message 'WARNING: this will display secrets' \
@@ -68,7 +73,7 @@ if [[ ! -f "${PRIMARY_CTX}" ]]; then
 fi
 
 # build PCR policy
-message "Building PCR policy (PCRs $PCR_LIST, $HASH)…"
+message "Building PCR policy (PCRs ${PCRS_TO_USE}, ${PCR_HASH_ALG})…"
 
 tpm2_startauthsession --policy-session -S "${SESSION_CTX}"
 tpm2_policypcr \

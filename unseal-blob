@@ -6,13 +6,13 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 LIB_DIR="${SCRIPT_DIR}/lib"
 . "${LIB_DIR}/common.sh"
 
-BLOB_NAME_TO_UNSEAL="${1:-ssh-passphrase}"
+BLOB_NAME="${1:-ssh-passphrase}"
 OUTPUT_TARGET="${2:--}"
 
 # PRIMARY_AUTH="" # Set this if your primary key itself has a password
 
-SEALED_OBJ_PUB="${SEALED_OBJ_PUB:-${TPM_ROOT}/${BLOB_NAME_TO_UNSEAL}${PRIM_EXTENSION}.pub}"
-SEALED_OBJ_PRIV="${SEALED_OBJ_PRIV:-${TPM_ROOT}/${BLOB_NAME_TO_UNSEAL}${PRIM_EXTENSION}.priv}"
+SEALED_OBJ_PUB="${SEALED_OBJ_PUB:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.pub}"
+SEALED_OBJ_PRIV="${SEALED_OBJ_PRIV:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.priv}"
 
 PCRS_TO_USE="${PCRS_TO_USE:-0,6,7}"
 PCR_HASH_ALG="${PCR_HASH_ALG:-sha384}"
@@ -47,7 +47,7 @@ err_exit() {
 [[ -f "${SEALED_OBJ_PRIV}" ]] \
     || err_exit "ERROR: Sealed object private part '${SEALED_OBJ_PRIV}' not found."
 
-message "Loading sealed object '${BLOB_NAME_TO_UNSEAL}'..."
+message "Loading sealed object '${BLOB_NAME}'..."
 
 # add -P "${PRIMARY_AUTH}" if your primary key itself has a password
 if ! tpm2_load \
