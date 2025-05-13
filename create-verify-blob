@@ -153,7 +153,6 @@ else
     tpm2_unseal -c "${SEALED_CTX}" -p "${AUTH_STRING}" -o "${RECOVERED}"
 fi
 
-### don't print this message if we didn't actually write somewhere
 if [[ "${RECOVERED}" == '-' ]]; then
     # The secret was already printed to stdout by tpm2_unseal in the block above.
     # You might just want a confirmation message here or nothing at all.

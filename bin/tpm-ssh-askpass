@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+BLOB_NAME='ssh-passphrase'
+UNSEAL_SCRIPT="$(dirname "${SCRIPT_DIR}")/unseal-blob"
+
+if ! [[ -f "${UNSEAL_SCRIPT}" ]]; then
+    echo >&2 "failed to find unseal script at ${UNSEAL_SCRIPT}"
+    exit 1
+fi
+
+"${UNSEAL_SCRIPT}" "${BLOB_NAME}" "-" 2>/dev/null
+exit $?

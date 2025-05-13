@@ -9,7 +9,7 @@ SCRIPT_TEMPDIR="$(mktemp -d /tmp/tpm.XXXXXXXXX)"
 
 # extension signaling which primary key is associated with a given secret.
 PRIM_EXTENSION="${PRIM_EXTENSION:-_p384}"
-PRIMARY_CTX="${PRIMARY_CTX:-${TPM_ROOT}/prim${PRIM_EXTENSION}.ctx}"
+PRIMARY_CTX="${PRIMARY_CTX:-${STORE}/prim${PRIM_EXTENSION}.ctx}"
 
 PCRS_TO_USE="${PCRS:-0,6,7}"
 PCR_HASH_ALG="${PCR_HASH_ALG:-sha384}"
