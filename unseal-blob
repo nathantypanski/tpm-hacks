@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
+
 set -euo pipefail
 
-TPM_ROOT="${HOME}/.tpm"
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+LIB_DIR="${SCRIPT_DIR}/lib"
+. "${LIB_DIR}/common.sh"
+
 BLOB_NAME_TO_UNSEAL="${1:-ssh-passphrase}"
 OUTPUT_TARGET="${2:--}"
 
-PRIMARY_CTX="${PRIMARY_CTX:-${TPM_ROOT}/prim384.ctx}"
 # PRIMARY_AUTH="" # Set this if your primary key itself has a password
 
-SEALED_OBJ_PUB="${SEALED_OBJ_PUB:-${TPM_ROOT}/${BLOB_NAME_TO_UNSEAL}_p384.pub}"
-SEALED_OBJ_PRIV="${SEALED_OBJ_PRIV:-${TPM_ROOT}/${BLOB_NAME_TO_UNSEAL}_p384.priv}"
+SEALED_OBJ_PUB="${SEALED_OBJ_PUB:-${TPM_ROOT}/${BLOB_NAME_TO_UNSEAL}${PRIM_EXTENSION}.pub}"
+SEALED_OBJ_PRIV="${SEALED_OBJ_PRIV:-${TPM_ROOT}/${BLOB_NAME_TO_UNSEAL}${PRIM_EXTENSION}.priv}"
 
-PCRS_TO_USE="0,6,7"
-PCR_HASH_ALG="sha384"
+PCRS_TO_USE="${PCRS_TO_USE:-0,6,7}"
+PCR_HASH_ALG="${PCR_HASH_ALG:-sha384}"
 PCR_LIST_FOR_UNSEAL="${PCR_HASH_ALG}:${PCRS_TO_USE}"
 
 TEMPDIR="$(mktemp -d /tmp/tpm-unseal-script.XXXXXXXXX)"
@@ -31,9 +34,6 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-message() {
-    echo ">>> $*" >&2
-}
 
 err_exit() {
     message $@

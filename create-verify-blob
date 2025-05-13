@@ -2,18 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-message() {
-    for arg in "${@}"; do
-        if [[ "${arg}" == "" ]]; then
-            printf >&2 "\n"
-        else
-            printf >&2 ">>> %s\n" "${arg}"
-        fi
-    done
-}
-
-TPM_ROOT="${TPM_ROOT:-${SCRIPT_DIR}}"
+LIB_DIR="${SCRIPT_DIR}/lib"
+. "${LIB_DIR}/common.sh"
 
 FORCE="${FORCE:-false}"
 SHOW_RECOVERED="${SHOW_RECOVERED:-false}"
@@ -27,16 +17,12 @@ fi
 # Allow overriding INPUT; default to "-" (read from stdin)
 INPUT="${INPUT:--}"
 
-# extension signaling which primary key is associated with a given secret.
-PRIM_EXTENSION="${PRIM_EXTENSION:-_p384}"
-
 PRIMARY_CTX="${PRIMARY_CTX:-${TPM_ROOT}/prim${PRIM_EXTENSION}.ctx}"
 PCR_POLICY="${PCR_POLICY:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.policy}"
 SEALED_PUB="${SEALED_PUB:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.pub}"
 SEALED_PRIV="${SEALED_PRIV:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.priv}"
 
 # temporary dirs
-TEMPDIR="$(mktemp -d /tmp/tpm.XXXXXXXXX)"
 SESSION_CTX="${SESSION_CTX:-${TEMPDIR}/session-p384.ctx}"
 SEALED_CTX="${SEALED_CTX:-${TEMPDIR}/${BLOB_NAME}-p384.ctx}"
 
@@ -46,18 +32,6 @@ PCRS=0,6,7
 HASH=sha384
 PCR_LIST="${HASH}:${PCRS}"
 AUTH_STRING="session:${SESSION_CTX}"
-
-
-fail_exists() {
-    if [[ "${FORCE}" = "true" || ${FORCE} = '1' ]]; then
-        return
-    elif [[ -f "${1}" ]]; then
-        message "output filename already exists:" \
-                "    '${1}'" \
-                "exiting. Set FORCE to override."
-        exit 201
-    fi
-}
 
 fail_exists "${PCR_POLICY}"
 fail_exists "${SEALED_PUB}"
@@ -160,6 +134,8 @@ tpm2_policypcr --session="${SESSION_CTX}" --pcr-list="${PCR_LIST}"
 # AUTH_STRING="session:${SESSION_CTX}+password:${SEALED_OBJECT_AUTH}"
 # If no separate sealed object auth (relying only on PCR policy):
 
+
+
 if [[ "${RECOVERED}" = '-' ]]; then
     # Sadly `-o` doesn't respect `-` here. We have to condition it in this
     # script.
@@ -169,14 +145,20 @@ else
     tpm2_unseal -c "${SEALED_CTX}" -p "${AUTH_STRING}" -o "${RECOVERED}"
 fi
 
-# don't print this message if we didn't actually write somewhere
-[[ "${RECOVERED}" != /dev/null && \
-   "${RECOVERED}" != '-' ]] && echo >&2 "Secret written to ${RECOVERED}"
-
-if [[ "${RECOVERED}" != '/dev/null' ]]; then
-    message "" "Recovered secret: $(<"${RECOVERED}")"
-else
-    message "" "Not echoing secret. Set RECOVERED=- to display secret values."
+### don't print this message if we didn't actually write somewhere
+if [[ "${RECOVERED}" == '-' ]]; then
+    # The secret was already printed to stdout by tpm2_unseal in the block above.
+    # You might just want a confirmation message here or nothing at all.
+    message "" "Recovered secret was written to standard output."
+elif [[ "${RECOVERED}" != '/dev/null' ]]; then
+    # RECOVERED is a file, so display its content
+    if [[ -f "${RECOVERED}" ]]; then # Check if the file actually exists
+        message "" "Recovered secret: $(<"${RECOVERED}")"
+    else
+        message "" "ERROR: Recovered file '${RECOVERED}' not found for display."
+    fi
+else # RECOVERED is /dev/null
+    message "" "Not echoing secret. Set RECOVERED=- to display secret values, or provide a filename."
 fi
 
 message "Success!"
