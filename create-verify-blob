@@ -28,10 +28,10 @@ fi
 # Allow overriding INPUT; default to "-" (read from stdin)
 INPUT="${INPUT:--}"
 
-PRIMARY_CTX="${PRIMARY_CTX:-${TPM_ROOT}/prim${PRIM_EXTENSION}.ctx}"
-PCR_POLICY="${PCR_POLICY:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.policy}"
-SEALED_PUB="${SEALED_PUB:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.pub}"
-SEALED_PRIV="${SEALED_PRIV:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.priv}"
+PRIMARY_CTX="${PRIMARY_CTX:-${STORE}/prim${PRIM_EXTENSION}.ctx}"
+PCR_POLICY="${PCR_POLICY:-${STORE}/${BLOB_NAME}${PRIM_EXTENSION}.policy}"
+SEALED_PUB="${SEALED_PUB:-${STORE}/${BLOB_NAME}${PRIM_EXTENSION}.pub}"
+SEALED_PRIV="${SEALED_PRIV:-${STORE}/${BLOB_NAME}${PRIM_EXTENSION}.priv}"
 
 # temporary dirs
 SESSION_CTX="${SESSION_CTX:-${SCRIPT_TEMPDIR}/session-p384.ctx}"
@@ -60,7 +60,7 @@ trap '
    else
        echo >&2 "WARNING: Skipping tempdir cleanup: suspicious path '${SCRIPT_TEMPDIR}'"
    fi
-' EXIT INT TERM
+' EXIT TERM
 
 # Ensure primary key
 if [[ ! -f "${PRIMARY_CTX}" ]]; then

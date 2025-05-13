@@ -11,8 +11,8 @@ OUTPUT_TARGET="${2:--}"
 
 # PRIMARY_AUTH="" # Set this if your primary key itself has a password
 
-SEALED_OBJ_PUB="${SEALED_OBJ_PUB:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.pub}"
-SEALED_OBJ_PRIV="${SEALED_OBJ_PRIV:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.priv}"
+SEALED_OBJ_PUB="${SEALED_OBJ_PUB:-${STORE}/${BLOB_NAME}${PRIM_EXTENSION}.pub}"
+SEALED_OBJ_PRIV="${SEALED_OBJ_PRIV:-${STORE}/${BLOB_NAME}${PRIM_EXTENSION}.priv}"
 
 PCRS_TO_USE="${PCRS_TO_USE:-0,6,7}"
 PCR_HASH_ALG="${PCR_HASH_ALG:-sha384}"
@@ -31,7 +31,7 @@ cleanup() {
         rm -rf -- "${SCRIPT_TEMPDIR}"
     fi
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT TERM
 
 
 err_exit() {

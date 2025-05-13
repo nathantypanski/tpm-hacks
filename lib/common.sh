@@ -30,8 +30,7 @@ ensure_dir() {
         message "ensure_dir called wiith no arguments"
         return 1
     fi
-    local dir="${1}"
-    mkdir -p "${TPM_ROOT}"
+    mkdir -p "${1}"
 }
 
 fail_exists() {
