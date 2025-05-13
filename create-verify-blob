@@ -52,7 +52,7 @@ trap '
    else
        echo >&2 "WARNING: Skipping tempdir cleanup: suspicious path '${TEMPDIR}'"
    fi
-' EXIT
+' EXIT INT TERM
 
 # Ensure primary key
 if [[ ! -f "${PRIMARY_CTX}" ]]; then
