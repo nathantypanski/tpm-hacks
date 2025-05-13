@@ -23,8 +23,10 @@ SEALED_PUB="${SEALED_PUB:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.pub}"
 SEALED_PRIV="${SEALED_PRIV:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.priv}"
 
 # temporary dirs
-SESSION_CTX="${SESSION_CTX:-${TEMPDIR}/session-p384.ctx}"
-SEALED_CTX="${SEALED_CTX:-${TEMPDIR}/${BLOB_NAME}-p384.ctx}"
+SESSION_CTX="${SESSION_CTX:-${SCRIPT_TEMPDIR}/session-p384.ctx}"
+SEALED_CTX="${SEALED_CTX:-${SCRIPT_TEMPDIR}/${BLOB_NAME}-p384.ctx}"
+echo >&2 "SESSION_CTX: '$SESSION_CTX'"
+echo >&2 "SEALED_CTX: '$SEALED_CTX'"
 
 
 # PCRs and hash must match your primary
@@ -47,10 +49,10 @@ trap '
    for f in "${SESSION_CTX}" "${SEALED_CTX}"; do
        [[ -f "$f" ]] && tpm2_flushcontext "$f" >/dev/null 2>&1 || true
    done
-   if [[ -n "${TEMPDIR:-}" && "$TEMPDIR" == /tmp/* ]]; then
-       echo >&2 [cleanup] rm -rf -- "${TEMPDIR}"
+   if [[ -n "${SCRIPT_TEMPDIR:-}" && "$SCRIPT_TEMPDIR" == /tmp/* ]]; then
+       echo >&2 [cleanup] rm -rf -- "${SCRIPT_TEMPDIR}"
    else
-       echo >&2 "WARNING: Skipping tempdir cleanup: suspicious path '${TEMPDIR}'"
+       echo >&2 "WARNING: Skipping tempdir cleanup: suspicious path '${SCRIPT_TEMPDIR}'"
    fi
 ' EXIT INT TERM
 

@@ -18,8 +18,8 @@ PCRS_TO_USE="${PCRS_TO_USE:-0,6,7}"
 PCR_HASH_ALG="${PCR_HASH_ALG:-sha384}"
 PCR_LIST_FOR_UNSEAL="${PCR_HASH_ALG}:${PCRS_TO_USE}"
 
-SESSION_CTX="${TEMPDIR}/unseal_policy_session.ctx"
-LOADED_SEALED_OBJ_CTX="${TEMPDIR}/unseal_loaded_sealed_obj.ctx"
+SESSION_CTX="${SCRIPT_TEMPDIR}/unseal_policy_session.ctx"
+LOADED_SEALED_OBJ_CTX="${SCRIPT_TEMPDIR}/unseal_loaded_sealed_obj.ctx"
 
 cleanup() {
     for f_ctx in "${SESSION_CTX}" "${LOADED_SEALED_OBJ_CTX}"; do
@@ -27,8 +27,8 @@ cleanup() {
             tpm2_flushcontext "${f_ctx}" >/dev/null 2>&1 || true
         fi
     done
-    if [[ -n "${TEMPDIR:-}" && "$TEMPDIR" == /tmp/* ]]; then
-        rm -rf -- "${TEMPDIR}"
+    if [[ -n "${SCRIPT_TEMPDIR:-}" && "$SCRIPT_TEMPDIR" == /tmp/* ]]; then
+        rm -rf -- "${SCRIPT_TEMPDIR}"
     fi
 }
 trap cleanup EXIT INT TERM

@@ -3,7 +3,7 @@
 # part of tpm-blobstore
 
 TPM_ROOT="${TPM_ROOT:-${HOME}/.tpm/tpm-blobstore}"
-TEMPDIR="$(mktemp -d /tmp/tpm.XXXXXXXXX)"
+SCRIPT_TEMPDIR="$(mktemp -d /tmp/tpm.XXXXXXXXX)"
 
 # extension signaling which primary key is associated with a given secret.
 PRIM_EXTENSION="${PRIM_EXTENSION:-_p384}"
