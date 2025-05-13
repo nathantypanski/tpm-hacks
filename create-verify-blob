@@ -1,20 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TPM_ROOT="${HOME}/.tpm"
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+message() {
+    for arg in "${@}"; do
+        if [[ "${arg}" == "" ]]; then
+            printf >&2 "\n"
+        else
+            printf >&2 ">>> %s\n" "${arg}"
+        fi
+    done
+}
+
+TPM_ROOT="${TPM_ROOT:-${SCRIPT_DIR}}"
 
 FORCE="${FORCE:-false}"
+SHOW_RECOVERED="${SHOW_RECOVERED:-false}"
+RECOVERED="${RECOVERED:-/dev/null}"
 
 BLOB_NAME="${BLOB_NAME:-}"
+if [[ -z "${BLOB_NAME}" ]]; then
+    message "You must set BLOB_NAME to run"
+    exit 1
+fi
 # Allow overriding INPUT; default to "-" (read from stdin)
 INPUT="${INPUT:--}"
-SHOW_RECOVERED="${SHOW_RECOVERED:-false}"
 
 # extension signaling which primary key is associated with a given secret.
 PRIM_EXTENSION="${PRIM_EXTENSION:-_p384}"
 
 PRIMARY_CTX="${PRIMARY_CTX:-${TPM_ROOT}/prim${PRIM_EXTENSION}.ctx}"
-PCR_POLICY="${PCR_POLICY:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION.policy}"
+PCR_POLICY="${PCR_POLICY:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.policy}"
 SEALED_PUB="${SEALED_PUB:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.pub}"
 SEALED_PRIV="${SEALED_PRIV:-${TPM_ROOT}/${BLOB_NAME}${PRIM_EXTENSION}.priv}"
 
@@ -23,9 +40,6 @@ TEMPDIR="$(mktemp -d /tmp/tpm.XXXXXXXXX)"
 SESSION_CTX="${SESSION_CTX:-${TEMPDIR}/session-p384.ctx}"
 SEALED_CTX="${SEALED_CTX:-${TEMPDIR}/${BLOB_NAME}-p384.ctx}"
 
-# Filename for writing secret. Set to `-` for stdout, or a filename to save
-# secret.
-RECOVERED="${RECOVERED:-/dev/null}"
 
 # PCRs and hash must match your primary
 PCRS=0,6,7
@@ -33,15 +47,6 @@ HASH=sha384
 PCR_LIST="${HASH}:${PCRS}"
 AUTH_STRING="session:${SESSION_CTX}"
 
-message() {
-    for arg in "${@}"; do
-        if [[ "${arg}" == "" ]]; then
-            printf "\n"
-        else
-            printf ">>> %s\n" "${arg}"
-        fi
-    done
-}
 
 fail_exists() {
     if [[ "${FORCE}" = "true" || ${FORCE} = '1' ]]; then
