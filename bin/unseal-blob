@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-LIB_DIR="${SCRIPT_DIR}/lib"
+LIB_DIR="$(dirname "${SCRIPT_DIR}")/lib"
 . "${LIB_DIR}/common.sh"
 
 BLOB_NAME="${1:-ssh-passphrase}"
@@ -82,12 +82,12 @@ message "Attempting to unseal object using policy session..."
 
 UNSEAL_SUCCESS=false
 if [[ "${OUTPUT_TARGET}" == "-" ]]; then
-    if tpm2_unseal --object-context "${LOADED_SEALED_OBJ_CTX}" --auth "${AUTH_STRING}" --verbose; then
+    if tpm2_unseal --object-context "${LOADED_SEALED_OBJ_CTX}" --auth "${AUTH_STRING}"; then
         UNSEAL_SUCCESS=true
     fi
 else
     # Unseal to a specified file
-    if tpm2_unseal --object-context "${LOADED_SEALED_OBJ_CTX}" --auth "${AUTH_STRING}" --verbose -o "${OUTPUT_TARGET}"; then # Direct command
+    if tpm2_unseal --object-context "${LOADED_SEALED_OBJ_CTX}" --auth "${AUTH_STRING}" -o "${OUTPUT_TARGET}"; then # Direct command
         UNSEAL_SUCCESS=true
     fi
 fi

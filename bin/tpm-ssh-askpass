@@ -3,7 +3,7 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 BLOB_NAME='ssh-passphrase'
-UNSEAL_SCRIPT="$(dirname "${SCRIPT_DIR}")/unseal-blob"
+UNSEAL_SCRIPT="$(dirname "${SCRIPT_DIR}")/bin/unseal-blob"
 
 if ! [[ -f "${UNSEAL_SCRIPT}" ]]; then
     echo >&2 "failed to find unseal script at ${UNSEAL_SCRIPT}"

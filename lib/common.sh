@@ -2,7 +2,7 @@
 #
 # part of tpm-blobstore
 
-TPM_ROOT="${TPM_ROOT:-${HOME}/.tpm/tpm-blobstore}"
+TPM_ROOT="${TPM_ROOT:-${HOME}/.tpm/tpm2-blobstore}"
 STORE="${TPM_ROOT}/blobs"
 
 SCRIPT_TEMPDIR="$(mktemp -d /tmp/tpm.XXXXXXXXX)"

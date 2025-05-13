@@ -7,7 +7,7 @@
 set -euo pipefail
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-LIB_DIR="${SCRIPT_DIR}/lib"
+LIB_DIR="$(dirname "${SCRIPT_DIR}")/lib"
 
 . "${LIB_DIR}/common.sh"
 
@@ -79,7 +79,7 @@ tpm2_startauthsession --policy-session -S "${SESSION_CTX}"
 tpm2_policypcr \
     --session="${SESSION_CTX}" \
     --policy="${PCR_POLICY}" \
-    --pcr-list="${PCR_LIST}"
+    --pcr-list="${PCR_LIST}" >&2
 
 tpm2_flushcontext "${SESSION_CTX}"
 
@@ -93,7 +93,7 @@ if [[ "${INPUT}" == "-" ]]; then
 message "" "Creating secret ..."
 # pass SECRET via here-string into stdin
 # avoids many security pitfalls of env vars / arguments
-tpm2_create \
+>&2 tpm2_create \
     --parent-context="${PRIMARY_CTX}" \
     --sealing-input=- \
     --policy="${PCR_POLICY}" \
@@ -102,7 +102,7 @@ tpm2_create \
     <<<"${SECRET}"
 else
   # read from the file pointed to by INPUT
-  tpm2_create \
+  >&2 tpm2_create \
     --parent-context="${PRIMARY_CTX}" \
     --sealing-input="${INPUT}" \
     --policy="${PCR_POLICY}" \
@@ -120,7 +120,7 @@ message "" "Sealed blob written to 2 files:" \
 # verify: load & unseal
 message "loading secret blob…"
 
-tpm2_load -C "${PRIMARY_CTX}" \
+>&2 tpm2_load -C "${PRIMARY_CTX}" \
           -u "${SEALED_PUB}" \
           -r "${SEALED_PRIV}" \
           -c "${SEALED_CTX}"
@@ -132,7 +132,7 @@ tpm2_startauthsession --policy-session --session="${SESSION_CTX}"
 # Satisfy the PCR policy using the current PCR values specified in PCR_LIST
 # This updates the session with a policy digest based on the current PCR state.
 message "updating session with current PCR values"
-tpm2_policypcr --session="${SESSION_CTX}" --pcr-list="${PCR_LIST}"
+tpm2_policypcr --session="${SESSION_CTX}" --pcr-list="${PCR_LIST}" >&2
 
 # Now, unseal using this policy session.
 # The TPM will compare the policy digest in the session against the policy

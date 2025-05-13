@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+BIN_DIR="$(dirname "${SCRIPT_DIR}")/bin"
+TEST_TEMPDIR="$(mktemp -d /tmp/tpm2-blobstore-test.XXXXXXXXX)"
+
+trap '
+   if [[ -n "${TEST_TEMPDIR:-}" && "$TEST_TEMPDIR" == /tmp/* ]]; then
+       echo >&2 [cleanup] rm -rf -- "${TEST_TEMPDIR}"
+       rm -rf -- "${TEST_TEMPDIR}"
+   else
+       echo >&2 "WARNING: Skipping tempdir cleanup: suspicious path '${TEST_TEMPDIR}'"
+   fi
+' EXIT TERM
+
+(
+    cd "${TEST_TEMPDIR}"
+    INPUT="${TEST_TEMPDIR}/test-stdin"
+    printf "%s" "SECRET" > "${INPUT}"
+    export TPM_ROOT="${TEST_TEMPDIR}"
+    INPUT="${INPUT}" "${BIN_DIR}/create-verify-blob" test
+    ls -l "${TEST_TEMPDIR}/blobs"
+    "${BIN_DIR}/unseal-blob" test -
+)
