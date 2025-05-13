@@ -18,7 +18,6 @@ PCRS_TO_USE="${PCRS_TO_USE:-0,6,7}"
 PCR_HASH_ALG="${PCR_HASH_ALG:-sha384}"
 PCR_LIST_FOR_UNSEAL="${PCR_HASH_ALG}:${PCRS_TO_USE}"
 
-TEMPDIR="$(mktemp -d /tmp/tpm-unseal-script.XXXXXXXXX)"
 SESSION_CTX="${TEMPDIR}/unseal_policy_session.ctx"
 LOADED_SEALED_OBJ_CTX="${TEMPDIR}/unseal_loaded_sealed_obj.ctx"
 
