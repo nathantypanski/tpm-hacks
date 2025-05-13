@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+FORCE=1 ./create-verify-blob test && ./unseal-blob test -
