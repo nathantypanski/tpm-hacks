@@ -51,6 +51,7 @@ trap '
    done
    if [[ -n "${SCRIPT_TEMPDIR:-}" && "$SCRIPT_TEMPDIR" == /tmp/* ]]; then
        echo >&2 [cleanup] rm -rf -- "${SCRIPT_TEMPDIR}"
+       rm -rf -- "${SCRIPT_TEMPDIR}"
    else
        echo >&2 "WARNING: Skipping tempdir cleanup: suspicious path '${SCRIPT_TEMPDIR}'"
    fi
