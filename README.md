@@ -11,7 +11,9 @@ A neat PoC is to use it as an `SSH_ASKPASS` helper, protecting your SSH
 passphrase with the TPM. The downside to storing full SSH keys in the TPM is you
 are generally unaware of what the state will be on the next boot after a
 kernel/bootloader upgrade; `systemd-cryptsetup` takes care of a lot of
-complexity under the hood to make that work. More on that later.
+complexity under the hood to make that work. I can always _type_ my
+SSH passphrase if I need to. Also, I might want to unlock---say---a
+Yubikey-backed secret.
 
 ## Usage
 
