@@ -62,15 +62,20 @@ trap '
    fi
 ' EXIT TERM
 
-# Ensure primary key
-if [[ ! -f "${PRIMARY_CTX}" ]]; then
-    message "Generating primary key (ECC P‑384 + AES‑256‑CTR)…"
-    tpm2_createprimary \
-        --hierarchy 'o' \
-        --hash-algorithm='sha384' \
-        --key-algorithm='ecc384:aes256ctr' \
-        --key-context="${PRIMARY_CTX}"
-fi
+# Ensure primary key exists
+create_primary_key() {
+    local primary_path="${1}"
+    if [[ ! -f "${primary_path}" ]]; then
+        message "Generating primary key (ECC P‑384 + AES‑256‑CTR)…"
+        tpm2_createprimary \
+            --hierarchy 'o' \
+            --hash-algorithm='sha384' \
+            --key-algorithm='ecc384:aes256ctr' \
+            --key-context="${primary_path}"
+    fi
+}
+
+create_primary_key "${PRIMARY_CTX}"
 
 # build PCR policy
 message "Building PCR policy (PCRs ${PCRS_TO_USE}, ${PCR_HASH_ALG})…"
@@ -90,10 +95,10 @@ if [[ "${INPUT}" == "-" ]]; then
   read -r -s SECRET < /dev/tty
   printf '\n' > /dev/tty
 
-message "" "Creating secret ..."
-# pass SECRET via here-string into stdin
-# avoids many security pitfalls of env vars / arguments
->&2 tpm2_create \
+  message "" "Creating secret ..."
+  # pass SECRET via here-string into stdin
+  # avoids many security pitfalls of env vars / arguments
+  >&2 tpm2_create \
     --parent-context="${PRIMARY_CTX}" \
     --sealing-input=- \
     --policy="${PCR_POLICY}" \
@@ -103,11 +108,11 @@ message "" "Creating secret ..."
 else
   # read from the file pointed to by INPUT
   >&2 tpm2_create \
-    --parent-context="${PRIMARY_CTX}" \
-    --sealing-input="${INPUT}" \
-    --policy="${PCR_POLICY}" \
-    --public="${SEALED_PUB}" \
-    --private="${SEALED_PRIV}"
+      --parent-context="${PRIMARY_CTX}" \
+      --sealing-input="${INPUT}" \
+      --policy="${PCR_POLICY}" \
+      --public="${SEALED_PUB}" \
+      --private="${SEALED_PRIV}"
 fi
 
 # Clear the secret from the environment
@@ -120,10 +125,11 @@ message "" "Sealed blob written to 2 files:" \
 # verify: load & unseal
 message "loading secret blob…"
 
->&2 tpm2_load -C "${PRIMARY_CTX}" \
-          -u "${SEALED_PUB}" \
-          -r "${SEALED_PRIV}" \
-          -c "${SEALED_CTX}"
+>&2 tpm2_load \
+    -C "${PRIMARY_CTX}" \
+    -u "${SEALED_PUB}" \
+    -r "${SEALED_PRIV}" \
+    -c "${SEALED_CTX}"
 
 # Start a new policy session for unsealing
 message "" "starting policy session"
@@ -142,8 +148,6 @@ tpm2_policypcr --session="${SESSION_CTX}" --pcr-list="${PCR_LIST}" >&2
 # AUTH_STRING="session:${SESSION_CTX}+password:${SEALED_OBJECT_AUTH}"
 # If no separate sealed object auth (relying only on PCR policy):
 
-
-
 if [[ "${RECOVERED}" = '-' ]]; then
     # Sadly `-o` doesn't respect `-` here. We have to condition it in this
     # script.
@@ -157,18 +161,26 @@ if [[ "${RECOVERED}" == '-' ]]; then
     # The secret was already printed to stdout by tpm2_unseal in the block above.
     # You might just want a confirmation message here or nothing at all.
     message "" "Recovered secret was written to standard output."
+
 elif [[ "${RECOVERED}" != '/dev/null' ]]; then
+
     # RECOVERED is a file, so display its content
     if [[ -f "${RECOVERED}" ]]; then # Check if the file actually exists
         message "" "Recovered secret: $(<"${RECOVERED}")"
     else
         message "" "ERROR: Recovered file '${RECOVERED}' not found for display."
     fi
+
 else # RECOVERED is /dev/null
     message "" "Not echoing secret. Set RECOVERED=- to display secret values, or provide a filename."
 fi
 
 message "Success!"
+message
+message "To recover:"
+message
+message 'use `unseal-blob '${blob_name}'`'
+
 echo >&2
 echo >&2 "PCR Policy:   ${PCR_POLICY}"
 echo >&2 "Public key:   ${SEALED_PUB}"

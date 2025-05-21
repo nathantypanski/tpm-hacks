@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#
+# create-verify-blob
+#
+# part of tpm-blobstore
+
+set -euo pipefail
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+LIB_DIR="$(dirname "${SCRIPT_DIR}")/lib"
+
+. "${LIB_DIR}/common.sh"
+
+for blob in $(ls "${STORE}" | grep '\.priv$'); do
+    echo "${blob%_*.*}"
+done
