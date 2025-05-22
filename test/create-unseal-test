@@ -20,7 +20,8 @@ trap '
     INPUT="${TEST_TEMPDIR}/test-stdin"
     printf "%s" "SECRET" > "${INPUT}"
     export TPM_ROOT="${TEST_TEMPDIR}"
-    INPUT="${INPUT}" "${BIN_DIR}/create-verify-blob" test
-    ls -l "${TEST_TEMPDIR}/blobs"
-    "${BIN_DIR}/unseal-blob" test -
+    INPUT="${INPUT}" "${BIN_DIR}/create-verify" test
+    [[ 5 == "$(ls -l "${TEST_TEMPDIR}/blobs" || wc -l)" ]] \
+           || (echo >&2 "test failed!" ; exit 2)
+    "${BIN_DIR}/unseal" test -
 )

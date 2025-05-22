@@ -179,7 +179,7 @@ message "Success!"
 message
 message "To recover:"
 message
-message 'use `unseal-blob '${blob_name}'`'
+message 'use `unseal-blob '${BLOB_NAME}'`'
 
 echo >&2
 echo >&2 "PCR Policy:   ${PCR_POLICY}"
